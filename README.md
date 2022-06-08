@@ -1,2 +1,7 @@
+# WORK IN PROGRESS - API IS NOT STABLE
+
 # overprocessed
-(WIP) Powerful and easy to use replacement for exec.Cmd
+Powerful and easy to use replacement for exec.Cmd
+
+# Installation
+
