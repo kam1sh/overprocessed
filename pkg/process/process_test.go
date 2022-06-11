@@ -4,12 +4,12 @@ import (
 	"context"
 	"io/ioutil"
 	"path"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
 
 	proc "github.com/kam1sh/overprocessed/pkg/process"
-	procapi "github.com/kam1sh/overprocessed/pkg/process/api"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,35 +44,6 @@ func TestRedirectBuf(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestPipe(t *testing.T) {
-	pipe := proc.Pipe{
-		From:   proc.NewProcess("echo", "123\n456"),
-		Stream: procapi.STDOUT,
-		To:     proc.NewProcess("grep", "2"),
-	}
-	require.NoError(t, pipe.Start())
-	err := pipe.Wait()
-	require.NoError(t, err)
-}
-
-func TestPipeline(t *testing.T) {
-	buf := proc.MemoryBuffer()
-	grep := proc.Redirect{
-		From: &proc.Pipe{
-			From:   proc.NewProcess("echo", "123\n456"),
-			Stream: procapi.STDOUT,
-			To:     proc.NewProcess("grep", "2"),
-		},
-		Stdout: buf,
-	}
-	err := grep.Start()
-	require.NoError(t, err)
-	require.NoError(t, grep.Wait())
-	stdout := buf.ReadAll()
-	require.NoError(t, err)
-	require.Equal(t, "123\n", string(stdout))
-}
-
 func TestTerminate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sleep := proc.ProcessContext{
@@ -93,4 +64,22 @@ func TestTerminate(t *testing.T) {
 	cancel()
 	<-done
 	require.NoError(t, err)
+}
+
+func TestRedirectProcess(t *testing.T) {
+	goexec := path.Join(runtime.GOROOT(), "bin", "go")
+	scanner := proc.NewScannerDest()
+	pipeline := &proc.Redirect{
+		From:   proc.NewProcess(goexec, "run", path.Join("testdata", "pipe.go")),
+		Stdin:  proc.NewProcess(goexec, "run", path.Join("testdata", "gen.go")),
+		Stdout: scanner,
+	}
+	t.Log(proc.DumpTree(pipeline))
+	out := make([]string, 0, 10)
+	require.NoError(t, pipeline.Start())
+	for scanner.Scan() {
+		out = append(out, scanner.Text())
+	}
+	require.NoError(t, pipeline.Wait())
+	require.Len(t, out, 10)
 }

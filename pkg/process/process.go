@@ -2,6 +2,7 @@ package process
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,7 +15,7 @@ type Process struct {
 	exitCode int
 }
 
-func NewProcess(cmd string, args ...string) api.Process {
+func NewProcess(cmd string, args ...string) *Process {
 	c := exec.Command(cmd, args...)
 	return &Process{
 		cmd:      c,
@@ -57,10 +58,32 @@ func (p *Process) ExitCode() int {
 }
 
 func (p *Process) Start() error {
+	log.Println("Starting", p.cmd.Args)
 	err := p.cmd.Start()
 	return err
 }
 
 func (p *Process) Cmd() *exec.Cmd {
 	return p.cmd
+}
+
+func (p *Process) Intercept(cmd *exec.Cmd, stream string) (err error) {
+	switch stream {
+	case api.STDIN:
+		cmd.Stdin, err = p.cmd.StdoutPipe()
+		if err != nil {
+			return
+		}
+	case api.STDERR:
+		p.cmd.Stdin, err = cmd.StderrPipe()
+		if err != nil {
+			return
+		}
+	case api.STDOUT:
+		p.cmd.Stdin, err = cmd.StdoutPipe()
+		if err != nil {
+			return
+		}
+	}
+	return nil
 }
